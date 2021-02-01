@@ -1,0 +1,37 @@
+shot_angle <- function(shot_x, shot_y){
+  post_x <- 187
+  post_top_y <- 46
+  post_bot_y <- 40
+  if(shot_y > post_top_y | shot_y < post_bot_y){ #Below or above the goal
+    adj <- sqrt((shot_x-post_x)^2)
+    hip_1 <- sqrt((shot_x-post_x)^2+(shot_y-post_top_y)^2)
+    hip_2 <- sqrt((shot_x-post_x)^2+(shot_y-post_bot_y)^2)
+    opp_1 <- sqrt((shot_y-post_top_y)^2)
+    opp_2 <- sqrt((shot_y-post_bot_y)^2)
+    alpha <- asin(opp_2/hip_2)
+    beta <- asin(opp_1/hip_1)
+    phi <- abs(alpha-beta)
+    return(phi)
+  }
+  if(shot_y == post_top_y | shot_y == post_bot_y){ # At the goalpost
+    adj <- sqrt((shot_x-post_x)^2)
+    hip <- sqrt((shot_x-post_x)^2+(shot_y-post_bot_y)^2)
+    opp <- sqrt((post_top_y-post_bot_y)^2)
+    phi <- abs(asin(opp/hip))
+    return(phi)
+  }
+  if(shot_y < post_top_y & shot_y > post_bot_y){ #Between the goalposts
+    adj <- sqrt((shot_x-post_x)^2)
+    hip_1 <- sqrt((shot_x-post_x)^2+(shot_y-post_top_y)^2)
+    hip_2 <- sqrt((shot_x-post_x)^2+(shot_y-post_bot_y)^2)
+    opp_1 <- sqrt((shot_y-post_top_y)^2)
+    opp_2 <- sqrt((shot_y-post_bot_y)^2)
+    alpha <- asin(opp_2/hip_2)
+    beta <- asin(opp_1/hip_1)
+    phi <- alpha+beta
+    return(phi)
+  }
+  return(phi)
+}
+
+shot_angle(149, 42)

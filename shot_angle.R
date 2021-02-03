@@ -34,4 +34,17 @@ shot_angle <- function(shot_x, shot_y){
   return(phi)
 }
 
-shot_angle(149, 42)
+
+shot_dist <- function(shot_x, shot_y){
+  goal_x <- 187
+  goal_y <- 43
+  distance <- sqrt((shot_x-goal_x)^2+(shot_y-goal_y)^2)
+  return(distance)
+}
+
+shot_dist(178, 40)
+shot_angle(178, 40)
+
+stan <- function(variable){
+  var_stan <-(variable-mean(variable, na.rm = T))/sd(variable, na.rm = T)
+}

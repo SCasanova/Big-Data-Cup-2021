@@ -5,6 +5,8 @@ library(mlr)
 library(xgboost)
 library(parallel)
 library(parallelMap)
+library(png)
+library(ggimage) 
 
 
 
@@ -15,7 +17,7 @@ prospects <- data.table(read.csv('https://raw.githubusercontent.com/bigdatacup/B
 goals <- womens[Event == 'Goal']
 shots <- womens[Event == 'Shot']
 
-
+min(shots$X.Coordinate)
 
 goals[, angle := shot_angle(X.Coordinate, Y.Coordinate)]
 

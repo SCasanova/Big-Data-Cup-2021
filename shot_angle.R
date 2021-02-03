@@ -1,7 +1,7 @@
 shot_angle <- function(shot_x, shot_y){
-  post_x <- 187
-  post_top_y <- 46
-  post_bot_y <- 40
+  post_x <- 186.7
+  post_top_y <- 45.5
+  post_bot_y <- 39.5
   if(shot_y > post_top_y | shot_y < post_bot_y){ #Below or above the goal
     adj <- sqrt((shot_x-post_x)^2)
     hip_1 <- sqrt((shot_x-post_x)^2+(shot_y-post_top_y)^2)
@@ -42,8 +42,8 @@ shot_dist <- function(shot_x, shot_y){
   return(distance)
 }
 
-shot_dist(178, 40)
-shot_angle(178, 40)
+shot_dist(187, 40)
+shot_angle(185, 39)
 
 stan <- function(variable){
   var_stan <-(variable-mean(variable, na.rm = T))/sd(variable, na.rm = T)

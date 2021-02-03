@@ -1,9 +1,12 @@
+summary(lm(Goal_bin~dist_stan+ angle+One_timer_bin, data = train_shots))
+
+
 new_tr <- train_shots %>% 
-  select(dist_stan, angle, Snapshot_bin, Fan_bin, Slapshot_bin, Deflection_bin, WrapA_bin, Wristshot_bin, Traffic_bin, One_timer_bin)  %>% 
+  select(dist_stan, angle, One_timer_bin)  %>% 
   as.matrix()
 
 new_ts <- test_shots %>% 
-  select(dist_stan, angle, Snapshot_bin, Fan_bin, Slapshot_bin, Deflection_bin, WrapA_bin, Wristshot_bin, Traffic_bin, One_timer_bin)  %>% 
+  select(dist_stan, angle, One_timer_bin)  %>% 
   as.matrix()
 
 labels <- train_shots$Goal_bin
@@ -26,7 +29,7 @@ params <- list(booster = "gbtree",
 set.seed(33)
 xgbcv <- xgboost::xgb.cv( params = params, 
                           data = dtrain, 
-                          nrounds = 300, 
+                          nrounds = 500, 
                           nfold = 5, 
                           showsd = T, 
                           stratified = T, 
@@ -37,7 +40,7 @@ xgbcv <- xgboost::xgb.cv( params = params,
 set.seed(33)
 xG_model <- xgboost::xgb.train (params = params, 
                                data = dtrain, 
-                               nrounds = 239, 
+                               nrounds = 293, 
                                watchlist = list(val=dtest,train=dtrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
@@ -50,11 +53,11 @@ xgboost::xgb.plot.importance(impor)
 #MLR learner
 
 lrn_tr <- train_shots %>% 
-  select(dist_stan, angle, Snapshot_bin, Fan_bin, Slapshot_bin, Deflection_bin, WrapA_bin,Wristshot_bin, Traffic_bin, One_timer_bin, Goal_bin)  %>% 
+  select(dist_stan, angle, One_timer_bin, Goal_bin)  %>% 
   data.frame()
     
 lrn_ts <- test_shots %>% 
-  select(dist_stan, angle, Snapshot_bin, Fan_bin, Slapshot_bin, Deflection_bin, WrapA_bin,Wristshot_bin, Traffic_bin, One_timer_bin, Goal_bin)  %>% 
+  select(dist_stan, angle, One_timer_bin, Goal_bin)  %>% 
   data.frame()
 
 lrn_tr$Goal_bin <- as.factor(lrn_tr$Goal_bin)
@@ -105,16 +108,16 @@ View(preds)
 mean(preds$xG)
 
 jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
-img <- "https://upload.wikimedia.org/wikipedia/commons/d/dd/HockeyRink-Zones.png"
 
+options(scipen = 9999)
 map <- ggplot(preds, aes(X.Coordinate, Y.Coordinate, fill= xG)) + 
-  stat_density2d(geom="tile", aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
+  stat_density2d(geom="tile", show.legend = F, aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
   scale_alpha(range = c(0.5, 1.0)) + 
   scale_fill_gradientn(colours = jet.colors(10), trans="sqrt")+
   theme_minimal()+
   labs(fill = "Goal Probabilty")+
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")
 
-ggsave("xG_heatmpa.png", map, device = 'png', dpi = 540)
+ggsave("xG_heatmap.png", map, device = 'png', dpi = 540)
 
 

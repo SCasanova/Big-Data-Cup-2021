@@ -21,8 +21,6 @@ all_shots[, angle_stan := stan(angle)]
 no_neg_dif <- all_shots[skater_dif >= 0]
 
 
-
-
 set.seed(35)
 train_rows <- createDataPartition(no_neg_dif$Goal_bin, p = 0.8, list = F)
 train_shots <- no_neg_dif[train_rows]

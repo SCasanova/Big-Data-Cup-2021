@@ -1,4 +1,8 @@
 all_shots <- womens[Event == 'Goal' | Event == 'Shot']
+all_shots[, posteam_skaters := ifelse(Team == Home.Team, Home.Team.Skaters, Away.Team.Skaters)]
+all_shots[, defteam_skaters := ifelse(Team == Home.Team, Away.Team.Skaters, Home.Team.Skaters)]
+all_shots[, skater_dif := posteam_skaters-defteam_skaters]
+
 all_shots[, Goal_bin := ifelse(Event == 'Goal', 1,0)]
 all_shots[, Traffic_bin := ifelse(Detail.3 == 't', 1,0)]
 all_shots[, One_timer_bin := ifelse(Detail.4 == 't', 1,0)]
@@ -13,9 +17,13 @@ all_shots[, Wristshot_bin := ifelse(Detail.1 == 'Wristshot', 1,0)]
 all_shots[, dist := shot_dist(X.Coordinate, Y.Coordinate)]
 all_shots[, angle := shot_angle(X.Coordinate, Y.Coordinate)]
 all_shots[, dist_stan := stan(dist)]
+all_shots[, angle_stan := stan(angle)]
+no_neg_dif <- all_shots[skater_dif >= 0]
 
 
-set.seed(33)
-train_rows <- sample(1:nrow(all_shots), nrow(all_shots)*0.75, replace = F)
-train_shots <- all_shots[train_rows]
-test_shots <- all_shots[-train_rows]
+
+
+set.seed(35)
+train_rows <- createDataPartition(no_neg_dif$Goal_bin, p = 0.8, list = F)
+train_shots <- no_neg_dif[train_rows]
+test_shots <- no_neg_dif[-train_rows]

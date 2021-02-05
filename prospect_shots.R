@@ -9,12 +9,13 @@ pros_shots[, One_timer_bin := ifelse(Detail.4 == 't', 1,0)]
 
 
 
-pros_shots[, dist := shot_dist(X.Coordinate, Y.Coordinate)]
-pros_shots[, angle := shot_angle(X.Coordinate, Y.Coordinate)]
+pros_shots[, dist := shot_dist_ohl(X.Coordinate, Y.Coordinate)]
+pros_shots[, angle := shot_angle_ohl(X.Coordinate, Y.Coordinate)]
 pros_shots[, dist_stan := stan(dist)]
 pros_shots[, angle_stan := stan(angle)]
 pros_shots_nodif <- pros_shots[skater_dif >= 0]
 
+pros_shots %>% arrange(X.Coordinate) %>% head(10)
 
 set.seed(2021)
 train_rows_p <- createDataPartition(pros_shots_nodif$Goal_bin, p = 0.8, list = F)

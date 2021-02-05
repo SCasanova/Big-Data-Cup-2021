@@ -18,11 +18,11 @@ params_prosp <- list(booster = "gbtree",
                objective = "binary:logistic", 
                eval_metric = c('logloss'),
                eta=0.01, 
-               gamma=2, 
-               min_child_weight=7.9, 
-               max_depth = 9,
-               subsample=0.442, 
-               colsample_bytree=0.519)
+               gamma=0, 
+               min_child_weight=4.87, 
+               max_depth = 11,
+               subsample=0.885, 
+               colsample_bytree=0.79)
 
 set.seed(33)
 xgbcv_prosp <- xgboost::xgb.cv( params = params_prosp, 
@@ -38,13 +38,13 @@ xgbcv_prosp <- xgboost::xgb.cv( params = params_prosp,
 set.seed(33)
 xG_model_prosp <- xgboost::xgb.train(params = params_prosp, 
                                data = prosptrain, 
-                               nrounds = 685, 
+                               nrounds = 451, 
                                watchlist = list(val=prosptest,train=prosptrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
                                maximize = F)
 
-
+par(mfrow=c(1,1))
 impor_prosp <- xgboost::xgb.importance(colnames(prosptrain), model = xG_model_prosp)
 xgboost::xgb.plot.importance(impor_prosp)
 
@@ -127,12 +127,21 @@ map_even_dif_prosp <- ggplot(preds_prosp[skater_dif == 0], aes(X.Coordinate, Y.C
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")
 #ggsave("xG_heatmap_no_pp.png", map_even_dif, device = 'png', dpi = 540)
 
-preds_prosp %>% mutate(points = ifelse(Goal_bin == 1, 1000, xG*1000)) %>% 
+cg_score <- preds_prosp %>% mutate(points = ifelse(Goal_bin == 1, 1000, xG_prosp*1000)) %>% 
+  group_by(Player) %>% 
+  summarise(chance_goal_score = sum(points),
+            goals = sum(Goal_bin),
+            shots = n(),
+            avg_cg_score = chance_goal_score/shots) %>% 
+  filter(shots >= 5) %>% 
+  arrange(desc(avg_cg_score))
+  
+c_score <- preds_prosp %>% mutate(points = xG_prosp*1000) %>% 
   group_by(Player) %>% 
   summarise(chance_score = sum(points),
             goals = sum(Goal_bin),
             shots = n(),
-            avg_score = chance_score/shots) %>% 
-  filter(shots > 5) %>% 
-  arrange(desc(avg_score))
-  
+            avg_c_score = chance_score/shots) %>% 
+  filter(shots >= 5) %>% 
+  arrange(desc(avg_c_score)) %>% 
+  select(-goals, -shots)

@@ -145,3 +145,11 @@ c_score <- preds_prosp %>% mutate(points = xG_prosp*1000) %>%
   filter(shots >= 5) %>% 
   arrange(desc(avg_c_score)) %>% 
   select(-goals, -shots)
+
+total_xg <- preds_prosp %>% 
+  group_by(Player) %>% 
+  summarise(xg = sum(xG_prosp),
+            shots = n()) %>% 
+  filter(shots >= 5) %>% 
+  arrange(desc(xg)) %>% 
+  select(-shots)

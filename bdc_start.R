@@ -11,6 +11,7 @@ library(scales)
 library(ggforce)
 library(remotes)
 library(ggtext)
+library(reshape2)
 
 scouting <- read.csv("~/Desktop/hackathon_scouting.csv")
 womens <- read.csv("~/Desktop/hackathon_womens.csv")
@@ -141,4 +142,7 @@ womens_win_prob <- womens_win_prob %>%
   mutate(away_wp = case_when(
     Home.Team == Team ~  1 - win_prob,
     Away.Team == Team ~ win_prob))
+
+game1 <- womens_win_prob %>%
+  filter(game_num == 1)
 

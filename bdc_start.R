@@ -71,14 +71,15 @@ ind <- sample(seq_len(nrow(model_data)), size = smp_size)
 ind_train <- model_data[ind, ]
 ind_test <- model_data[-ind, ]
 
-nrounds = 100
+nrounds <- 100
 params <-
   list(
     booster = "gbtree",
-    objective = "binary:logistic",
-    eval_metric = c("logloss"),
-    eta = 0.2,
-    gamma = 0,
+    objective = "multi:softprob",
+    eval_metric = c("mlogloss"),
+    num_class = 2,
+    eta = .025,
+    gamma = 2,
     subsample=0.8,
     colsample_bytree=0.8,
     max_depth = 4,
@@ -99,7 +100,7 @@ model_games <- model_data %>%
 
 wp_games <- stats::predict(wp_model,
                              as.matrix(model_games %>%
-                                         select(label, Period, Clock, score_diff, 
+                                         select(Period, Clock, score_diff, 
                                                 skater_diff, total_time_left))) %>%
     tibble::as_tibble() %>%
     dplyr::rename(prob = "value") %>%
@@ -110,7 +111,7 @@ wp_games <- stats::predict(wp_model,
                      "score_diff" = model_games$score_diff[[x]],
                      "skater_diff" = model_games$skater_diff[[x]],
                      "total_time_left" = model_games$total_time_left[[x]],
-                     "index" = model_games$index[[x]]) 
+                     "index" = model_games$index[[x]])
     })) %>%
     dplyr::group_by(.data$index) %>%
     dplyr::mutate(cum_prob = cumsum(.data$prob),
@@ -119,7 +120,25 @@ wp_games <- stats::predict(wp_model,
     dplyr::summarise(win_prob = sum(.data$prob * .data$wp)) %>%
     ungroup()   
   
-    
-  
+win_prob <- model_games %>%
+  inner_join(wp_games) %>%
+  select(-label, -index) %>%
+  mutate(play_num = 1:n())
 
+womens_win_prob <- womens %>%
+  filter(winner != "TIE") %>%
+  mutate(label = ifelse(Team == winner, 1, 0),
+         play_num = 1:n()) 
+
+womens_win_prob <- womens_win_prob %>%
+  left_join(win_prob)
+
+womens_win_prob <- womens_win_prob %>%
+  mutate(home_wp = case_when(
+    Home.Team == Team ~  win_prob,
+    Away.Team == Team ~ 1 - win_prob))
+womens_win_prob <- womens_win_prob %>%
+  mutate(away_wp = case_when(
+    Home.Team == Team ~  1 - win_prob,
+    Away.Team == Team ~ win_prob))
 

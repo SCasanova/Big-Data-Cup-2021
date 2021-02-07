@@ -50,5 +50,18 @@ ggplot(passes, aes(direct, int_pass_dist)) +
   theme_minimal()
 
 
+womens_mat <- womens %>% 
+  select(Period, Clock, score_diff,skater_diff, total_time_left)  %>% 
+  as.matrix()
 
+wp_all <- predict(wp_model, womens_mat)
+womens <- cbind(womens, wp_all)
 
+goals_wp <- womens %>% 
+  mutate(goal = ifelse(Event == 'Goal', 1, 0)) %>% 
+  group_by(wp_all) %>% 
+  summarise(goals = sum(goal))
+
+ggplot(goals_wp, aes(wp_all, goals))+
+  geom_smooth(se = F) +
+  theme_minimal()

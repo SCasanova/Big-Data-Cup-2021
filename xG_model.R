@@ -1,13 +1,15 @@
-glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+skater_dif, family = binomial(link='logit'), data = train_shots)
+
+glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+skater_dif+Traffic_bin+wp, family = binomial(link='logit'), data = train_shots)
+summary(glm_goal)
 
 test_shots[, glm_pred := plogis(predict(glm_goal, test_shots))]
 
 new_tr <- train_shots %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif,wp)  %>% 
   as.matrix()
 
 new_ts <- test_shots %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif,wp)  %>% 
   as.matrix()
 
 labels <- train_shots$Goal_bin
@@ -21,16 +23,16 @@ params <- list(booster = "gbtree",
                objective = "binary:logistic", 
                eval_metric = c('logloss'),
                eta=0.01, 
-               gamma=5, 
-               min_child_weight=4.59, 
-               max_depth = 10,
-               subsample=0.977, 
-               colsample_bytree=0.655)
+               gamma=0, 
+               min_child_weight=6.56, 
+               max_depth = 9,
+               subsample=0.956, 
+               colsample_bytree=0.96)
 
 set.seed(33)
 xgbcv <- xgboost::xgb.cv( params = params, 
                           data = dtrain, 
-                          nrounds = 2000, 
+                          nrounds = 5000, 
                           nfold = 7, 
                           showsd = T, 
                           stratified = T, 
@@ -41,7 +43,7 @@ xgbcv <- xgboost::xgb.cv( params = params,
 set.seed(33)
 xG_model <- xgboost::xgb.train(params = params, 
                                data = dtrain, 
-                               nrounds = 634, 
+                               nrounds = 743, 
                                watchlist = list(val=dtest,train=dtrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
@@ -54,11 +56,11 @@ xgboost::xgb.plot.importance(impor)
 #MLR learner
 
 lrn_tr <- train_shots %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif, Goal_bin)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif, Goal_bin, wp)  %>% 
   data.frame()
     
 lrn_ts <- test_shots %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif, Goal_bin)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif, Goal_bin,wp)  %>% 
   data.frame()
 
 lrn_tr$Goal_bin <- as.factor(lrn_tr$Goal_bin)
@@ -101,23 +103,37 @@ lrn_tune <- setHyperPars(lrn,par.vals = mytune$x)
 #predict model and vis
 
 xG <- predict(xG_model, dtest)
-
 preds <- cbind(test_shots, xG)
 
-View(preds)
+preds %>% select(Goal_bin, xG, xG_tree)
 mean(preds$Goal_bin)
+mean(preds$xG_tree)
+
 
 jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
 
+prob <- preds %>% group_by(X.Coordinate, Y.Coordinate) %>% 
+  summarise(mean_xG = mean(xG))
+
+
 options(scipen = 9999)
-map <- ggplot(preds, aes(X.Coordinate, Y.Coordinate, fill= xG)) + 
+map <- ggplot(preds, aes(X.Coordinate, Y.Coordinate)) + 
+  stat_density2d(geom="tile", show.legend = F, aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
+  scale_alpha(range = c(0.5, 1.0)) + 
+  scale_fill_gradientn(colours = jet.colors(15), trans="sqrt")+
+  theme_minimal()+
+  labs(x = NULL, y = NULL)+
+  coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")
+ggsave("xG_heatmap.png", map, device = 'png', dpi = 540)
+
+ggplot(preds, aes(X.Coordinate, Y.Coordinate)) + 
   stat_density2d(geom="tile", show.legend = F, aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
   scale_alpha(range = c(0.5, 1.0)) + 
   scale_fill_gradientn(colours = jet.colors(10), trans="sqrt")+
   theme_minimal()+
   labs(x = NULL, y = NULL)+
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")
-ggsave("xG_heatmap.png", map, device = 'png', dpi = 540)
+
 
 map_even_dif <- ggplot(preds[skater_dif == 0], aes(X.Coordinate, Y.Coordinate, fill= xG)) + 
   stat_density2d(geom="tile", show.legend = F, aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
@@ -133,6 +149,6 @@ preds %>% mutate(points = ifelse(Goal_bin == 1, 1000, xG*1000)) %>%
   summarise(chance_score = sum(points),
             goals = sum(Goal_bin),
             shots = n(),
-            avg_score = chance_score/shots) %>% 
-  arrange(desc(avg_score))
+            avg_c_score = chance_score/shots) %>% 
+  arrange(desc(avg_c_score))
   

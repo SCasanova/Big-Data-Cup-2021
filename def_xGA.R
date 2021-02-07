@@ -26,6 +26,7 @@ takeaways[, recover_xG := xG_off]
 
 taken_goals_score <- takeaways %>% group_by(Player) %>%
   summarise(taken_goals = sum(recover_xG),
-            takeaways = n()) %>% 
-  filter(takeaways >= 12) %>% 
-  arrange(desc(taken_goals))
+            takeaways = n(),
+            avg_prob_taken = taken_goals/takeaways) %>% 
+  filter(takeaways >= 15) %>% 
+  arrange(desc(avg_prob_taken))

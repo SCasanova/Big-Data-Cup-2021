@@ -1,12 +1,14 @@
-glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+skater_dif+Traffic_bin, family = binomial(link='logit'), data = train_shots_p)
+library(latticeExtra)
+
+glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+skater_diff+Traffic_bin+wp_prosp, family = binomial(link='logit'), data = train_shots_p)
 summary(glm_goal)
 
 prosp_tr <- train_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp)  %>% 
   as.matrix()
 
 prosp_ts <- test_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp)  %>% 
   as.matrix()
 
 labels_prosp <- train_shots_p$Goal_bin
@@ -21,10 +23,11 @@ params_prosp <- list(booster = "gbtree",
                eval_metric = c('logloss'),
                eta=0.01, 
                gamma=0, 
-               min_child_weight=4.87, 
-               max_depth = 11,
-               subsample=0.885, 
-               colsample_bytree=0.79)
+               min_child_weight=6.89, 
+               max_depth = 20,
+               subsample=0.654, 
+               colsample_bytree=0.67,
+               mean_score = mean(train_shots$Goal_bin))
 
 set.seed(33)
 xgbcv_prosp <- xgboost::xgb.cv( params = params_prosp, 
@@ -40,7 +43,7 @@ xgbcv_prosp <- xgboost::xgb.cv( params = params_prosp,
 set.seed(33)
 xG_model_prosp <- xgboost::xgb.train(params = params_prosp, 
                                data = prosptrain, 
-                               nrounds = 451, 
+                               nrounds = 685, 
                                watchlist = list(val=prosptest,train=prosptrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
@@ -53,11 +56,11 @@ xgboost::xgb.plot.importance(impor_prosp)
 #MLR learner
 
 lrn_tr_prosp <- train_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif, Goal_bin)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp, Goal_bin)  %>% 
   data.frame()
     
 lrn_ts_prosp <- test_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif, Goal_bin)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp, Goal_bin)  %>% 
   data.frame()
 
 lrn_tr_prosp$Goal_bin <- as.factor(lrn_tr_prosp$Goal_bin)
@@ -70,9 +73,8 @@ testtask_prosp <- createDummyFeatures (obj = testtask_prosp)
 
 
 lrn_prosp <- makeLearner("classif.xgboost",predict.type = "response")
-lrn_prosp$par.vals <- list( objective="binary:logistic", eval_metric="logloss", nrounds=600, eta=0.01)
-params_lrn_prosp <- makeParamSet( makeDiscreteParam("booster",values = c("gbtree","gblinear")), 
-                        makeIntegerParam("max_depth",lower = 3L,upper = 15L), 
+lrn_prosp$par.vals <- list( objective="binary:logistic", eval_metric="logloss", nrounds=600, eta=0.01, base_score =mean(train_shots$Goal_bin), booster = 'gbtree')
+params_lrn_prosp <- makeParamSet(makeIntegerParam("max_depth",lower = 3L,upper = 20L), 
                         makeIntegerParam("gamma",lower = 0L,upper = 6L), 
                         makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
                         makeNumericParam("subsample",lower = 0.4,upper = 1), 
@@ -110,6 +112,18 @@ mean(preds_prosp$xG_prosp)
 
 jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
 
+
+write.csv(prob_prosp, 'heatmap_file.csv')
+
+##
+
+library(MBA)
+
+prob_prosp=prob_prosp[ order(prob_prosp[,1], prob_prosp[,2],prob_prosp[,3]), ]
+mba.int <- mba.surf(prob_prosp, 500, 500, extend=T)$xyz.est
+library(fields)
+fields::image.plot(mba.int)
+
 options(scipen = 9999)
 map_prosp <- ggplot(preds_prosp, aes(X.Coordinate, Y.Coordinate, fill= xG_prosp)) + 
   stat_density2d(geom="tile", show.legend = F, aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
@@ -120,6 +134,14 @@ map_prosp <- ggplot(preds_prosp, aes(X.Coordinate, Y.Coordinate, fill= xG_prosp)
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")
 #ggsave("xG_heatmap.png", map, device = 'png', dpi = 540)
 
+
+
+ggplot(prob_prosp, aes(X.Coordinate, Y.Coordinate))+
+  geom_point(aes(color = value*100), size = 10, alpha = 0.3)+
+  theme_minimal()+
+  scale_color_viridis(option = "B")
+
+
 map_even_dif_prosp <- ggplot(preds_prosp[skater_dif == 0], aes(X.Coordinate, Y.Coordinate, fill= xG_prosp)) + 
   stat_density2d(geom="tile", show.legend = F, aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=100) + 
   scale_alpha(range = c(0.5, 1.0)) + 
@@ -129,29 +151,4 @@ map_even_dif_prosp <- ggplot(preds_prosp[skater_dif == 0], aes(X.Coordinate, Y.C
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")
 #ggsave("xG_heatmap_no_pp.png", map_even_dif, device = 'png', dpi = 540)
 
-cg_score <- preds_prosp %>% mutate(points = ifelse(Goal_bin == 1, 1000, xG_prosp*1000)) %>% 
-  group_by(Player) %>% 
-  summarise(chance_goal_score = sum(points),
-            goals = sum(Goal_bin),
-            shots = n(),
-            avg_cg_score = chance_goal_score/shots) %>% 
-  filter(shots >= 5) %>% 
-  arrange(desc(avg_cg_score))
-  
-c_score <- preds_prosp %>% mutate(points = xG_prosp*1000) %>% 
-  group_by(Player) %>% 
-  summarise(chance_score = sum(points),
-            goals = sum(Goal_bin),
-            shots = n(),
-            avg_c_score = chance_score/shots) %>% 
-  filter(shots >= 5) %>% 
-  arrange(desc(avg_c_score)) %>% 
-  select(-goals, -shots)
 
-total_xg <- preds_prosp %>% 
-  group_by(Player) %>% 
-  summarise(xg = sum(xG_prosp),
-            shots = n()) %>% 
-  filter(shots >= 5) %>% 
-  arrange(desc(xg)) %>% 
-  select(-shots)

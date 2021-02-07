@@ -15,17 +15,19 @@ scores_plus_def <- within(scores_plus_def, pct_cg <- perc.rank(avg_cg_score))
 scores_plus_def <- within(scores_plus_def, pct_xga <- perc.rank(xGA))
 scores_plus_def <- within(scores_plus_def, pct_take_def <- perc.rank(taken_goals))
 scores_plus_def <- within(scores_plus_def, pct_xg <- perc.rank(xg))
+scores_plus_def <- within(scores_plus_def, pct_goX <- perc.rank(goals_oX))
 
 
-test_prof <- scores_plus_def %>% arrange(desc(pct_take_def)) %>%    head(6)
+
+test_prof <- scores_plus_def%>%   head(6)
 mytitle <- test_prof$Player
-test_prof <- test_prof %>% select(pct_cg, pct_c, pct_xga, pct_take_def, pct_xg)
+test_prof <- test_prof %>% select(pct_cg, pct_c, pct_xga, pct_take_def, pct_xg,pct_goX)
 
 mins <- c(rep(0,ncol(test_prof)))
 maxs <- c(rep(1,ncol(test_prof)))
 
 test_prof <-rbind(maxs , mins , test_prof)
-colnames(test_prof) <- c('Opp+Shoot', 'Opp', 'Passing', 'Defending', 'xGoals')
+colnames(test_prof) <- c('CG Score', 'C Score', 'xGA', 'xGA Saved', 'xGoals', 'Goals over X')
 
 # Prepare color
 colors_border=colormap(colormap=colormaps$viridis, nshades=6, alpha=1)

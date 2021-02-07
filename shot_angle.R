@@ -92,3 +92,5 @@ shot_dist_ohl <- function(shot_x, shot_y){
   distance <- sqrt((shot_x-goal_x)^2+(shot_y-goal_y)^2)
   return(distance)
 }
+
+perc.rank <- function(x) trunc(rank(x))/length(x)

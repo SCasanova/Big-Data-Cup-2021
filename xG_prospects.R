@@ -1,3 +1,5 @@
+glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+skater_dif+Traffic_bin, family = binomial(link='logit'), data = train_shots_p)
+summary(glm_goal)
 
 prosp_tr <- train_shots_p %>% 
   select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_dif)  %>% 

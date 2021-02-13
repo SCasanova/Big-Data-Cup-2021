@@ -63,11 +63,11 @@ scouting_data <- scouting %>%
   mutate(label = ifelse(Team == winner, 1, 0)) %>%
   select(label, Period, Clock, score_diff, skater_diff, total_time_left)
 
-smp_size <- floor(0.80 * nrow(model_data))
+smp_size <- floor(0.80 * nrow(scouting_data))
 set.seed(123)
-ind <- sample(seq_len(nrow(model_data)), size = smp_size)
-ind_train <- model_data[ind, ]
-ind_test <- model_data[-ind, ]
+ind <- sample(seq_len(nrow(scouting_data)), size = smp_size)
+ind_train <- scouting_data[ind, ]
+ind_test <- scouting_data[-ind, ]
 
 nrounds <- 100
 params <-
@@ -93,10 +93,10 @@ scouting_wp <- xgboost::xgboost(params = params, data = full_train, nrounds = nr
 importance <- xgboost::xgb.importance(feature_names = colnames(scouting_wp), model = scouting_wp)
 xgb.plot.importance(importance)
 
-model_scouting_games <- model_data %>%
+model_scouting_games <- scouting_data %>%
   mutate(index = 1:n())
 
-wp_scouting_games <- stats::predict(wp_model,
+wp_scouting_games <- stats::predict(scouting_wp,
                            as.matrix(model_scouting_games %>%
                                        select(Period, Clock, score_diff, 
                                               skater_diff, total_time_left))) %>%
@@ -104,12 +104,12 @@ wp_scouting_games <- stats::predict(wp_model,
   dplyr::rename(prob = "value") %>%
   dplyr::bind_cols(purrr::map_dfr(seq_along(model_scouting_games$index), function(x) {
     tibble::tibble("wp" = 0:1,
-                   "Period" = model_games$Period[[x]],
-                   "Clock" = model_games$Clock[[x]],
-                   "score_diff" = model_games$score_diff[[x]],
-                   "skater_diff" = model_games$skater_diff[[x]],
-                   "total_time_left" = model_games$total_time_left[[x]],
-                   "index" = model_games$index[[x]])
+                   "Period" = model_scouting_games$Period[[x]],
+                   "Clock" = model_scouting_games$Clock[[x]],
+                   "score_diff" = model_scouting_games$score_diff[[x]],
+                   "skater_diff" = model_scouting_games$skater_diff[[x]],
+                   "total_time_left" = model_scouting_games$total_time_left[[x]],
+                   "index" = model_scouting_games$index[[x]])
   })) %>%
   dplyr::group_by(.data$index) %>%
   dplyr::mutate(cum_prob = cumsum(.data$prob),
@@ -140,9 +140,19 @@ scouting_win_prob <- scouting_win_prob %>%
     Home.Team == Team ~  1 - win_prob,
     Away.Team == Team ~ win_prob))
 
-scouting_game1 <- scouting_win_prob %>%
-  filter(game_num == 1)
+lrn <- makeLearner("classif.xgboost",predict.type = "response")
+lrn$par.vals <- list( objective="binary:logistic", eval_metric="error", nrounds=100L, eta=0.1)
 
+params <- makeParamSet( makeDiscreteParam("booster",values = c("gbtree")), 
+                        makeIntegerParam("max_depth",lower = 3L,upper = 20L), 
+                        makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
+                        makeNumericParam("subsample",lower = 0.5,upper = 1), 
+                        makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
 
+rdesc <- makeResampleDesc("CV",stratify = T,iters=5L)
+
+ctrl <- makeTuneControlRandom(maxit = 10L)
+
+parallelStartSocket(cpus = detectCores())
 
 

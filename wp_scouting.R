@@ -1,5 +1,8 @@
 library(tidyverse)
 library(xgboost)
+library(parallel)
+library(parallelMap)
+library(mlr)
 library(magrittr)
 library(dplyr)
 library(Matrix)
@@ -12,8 +15,12 @@ library(ggforce)
 library(remotes)
 library(ggtext)
 library(reshape2)
+library(caret)
+library(data.table)
 
 scouting <- read.csv("~/Desktop/hackathon_scouting.csv")
+scouting <-  data.table(read.csv('https://raw.githubusercontent.com/bigdatacup/Big-Data-Cup-2021/main/hackathon_scouting.csv'))
+
 
 scouting$Clock <- sapply(strsplit(scouting$Clock,":"),
                        function(x) {
@@ -63,13 +70,12 @@ scouting_data <- scouting %>%
   mutate(label = ifelse(Team == winner, 1, 0)) %>%
   select(label, Period, Clock, score_diff, skater_diff, total_time_left)
 
-smp_size <- floor(0.80 * nrow(scouting_data))
 set.seed(123)
-ind <- sample(seq_len(nrow(scouting_data)), size = smp_size)
-ind_train <- scouting_data[ind, ]
-ind_test <- scouting_data[-ind, ]
+ind <- createDataPartition(scouting_data$label, p = 0.8, list = F)
+ind_train <- scouting_data[ind,]
+ind_test <- scouting_data[-ind,]
 
-nrounds <- 100
+
 params <-
   list(
     booster = "gbtree",
@@ -78,17 +84,37 @@ params <-
     num_class = 2,
     eta = .025,
     gamma = 2,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    max_depth = 4,
-    min_child_weight = 1
+    subsample=0.944,
+    colsample_bytree=0.901,
+    max_depth = 12,
+    min_child_weight = 4.8
   )
 
 full_train = xgboost::xgb.DMatrix(model.matrix(~.+0, data = ind_train %>% select(-label)),
                                   label = ind_train$label)
 
+full_test = xgboost::xgb.DMatrix(model.matrix(~.+0, data = ind_test %>% select(-label)),
+                                  label = ind_test$label)
+
+
+set.seed(123)
+cv_wp <- xgboost::xgb.cv( params = params, 
+                          data = full_train, 
+                          nrounds = 2000, 
+                          nfold = 7, 
+                          showsd = T, 
+                          stratified = T, 
+                          print_every_n = 20, 
+                          early_stopping_rounds = 20, 
+                          maximize = F)
+nrounds <- 717
+
 set.seed(123) 
-scouting_wp <- xgboost::xgboost(params = params, data = full_train, nrounds = nrounds, verbose = 2)
+scouting_wp <- xgboost::xgboost(params = params, 
+                                data = full_train, 
+                                nrounds = nrounds, 
+                                print_every_n = 50, 
+                                verbose = 2)
 
 importance <- xgboost::xgb.importance(feature_names = colnames(scouting_wp), model = scouting_wp)
 xgb.plot.importance(importance)
@@ -140,19 +166,42 @@ scouting_win_prob <- scouting_win_prob %>%
     Home.Team == Team ~  1 - win_prob,
     Away.Team == Team ~ win_prob))
 
-lrn <- makeLearner("classif.xgboost",predict.type = "response")
-lrn$par.vals <- list( objective="binary:logistic", eval_metric="error", nrounds=100L, eta=0.1)
+##Learner
 
-params <- makeParamSet( makeDiscreteParam("booster",values = c("gbtree")), 
+lrn_tr_wp <- ind_train %>% 
+select(label, Period, Clock, score_diff, skater_diff, total_time_left) %>% 
+  data.frame()
+    
+lrn_ts_wp <- ind_test %>% 
+select(label, Period, Clock, score_diff, skater_diff, total_time_left) %>% 
+  data.frame()
+
+lrn_tr_wp$label <- as.factor(lrn_tr_wp$label)
+lrn_ts_wp$label <- as.factor(lrn_ts_wp$label)
+
+traintask_wp <- makeClassifTask (data = lrn_tr_wp,target = "label")
+testtask_wp <- makeClassifTask (data = lrn_ts_wp,target = "label")
+traintask_wp <- createDummyFeatures (obj = traintask_wp)
+testtask_wp <- createDummyFeatures (obj = testtask_wp)
+
+lrn <- makeLearner("classif.xgboost",predict.type = "response")
+lrn$par.vals <- list( objective="multi:softprob", eval_metric="mlogloss", nrounds=100L, eta=0.025)
+
+params_lrn <- makeParamSet( makeDiscreteParam("booster",values = c("gbtree")), 
                         makeIntegerParam("max_depth",lower = 3L,upper = 20L), 
                         makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
                         makeNumericParam("subsample",lower = 0.5,upper = 1), 
                         makeNumericParam("colsample_bytree",lower = 0.5,upper = 1))
 
-rdesc <- makeResampleDesc("CV",stratify = T,iters=5L)
+rdesc <- makeResampleDesc("CV",stratify = T,iters=10L)
 
-ctrl <- makeTuneControlRandom(maxit = 10L)
+ctrl_wp <- makeTuneControlRandom(maxit = 10L)
 
 parallelStartSocket(cpus = detectCores())
-
+wptune <- tuneParams(learner = lrn, 
+                     task = traintask_wp, 
+                     resampling = rdesc, 
+                     measures = acc, 
+                     par.set = params_lrn, 
+                     control = ctrl_wp, show.info = T)
 

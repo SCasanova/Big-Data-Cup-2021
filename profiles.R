@@ -14,14 +14,13 @@ scores_plus_def <- within(scores_plus_def, pct_c <- perc.rank(avg_c_score))
 scores_plus_def <- within(scores_plus_def, pct_cg <- perc.rank(avg_cg_score))
 scores_plus_def <- within(scores_plus_def, pct_cpoe <- perc.rank(cpoe))
 scores_plus_def <- within(scores_plus_def, pct_take_def <- perc.rank(avg_prob_taken))
-scores_plus_def <- within(scores_plus_def, pct_xg <- perc.rank(xg))
 scores_plus_def <- within(scores_plus_def, pct_goX <- perc.rank(goals_oX))
 
 
 
 test_prof <- scores_plus_def %>% arrange(desc(pct_cpoe)) %>%   head(6)
 mytitle <- test_prof$Player
-test_prof <- test_prof %>% select(pct_cg, pct_c, pct_cpoe, pct_take_def, pct_xg,pct_goX)
+test_prof <- test_prof %>% select(pct_cg, pct_c, pct_cpoe, pct_take_def,pct_goX)
 #test_prof <- test_prof %>% select(avg_cg_score, avg_c_score, cpoe, taken_goals, xg,goals_oX)
 
 
@@ -44,7 +43,7 @@ maxs <- c(rep(1,ncol(test_prof)))
 #          max(scores_plus_def$goals_oX))
 
 test_prof <-rbind(maxs , mins , test_prof)
-colnames(test_prof) <- c('CG Score', 'C Score', 'CPOE', 'xGA Saved', 'xGoals', 'Goals over X')
+colnames(test_prof) <- c('CG Score', 'C Score', 'CPOE', 'xGA Saved', 'Goals over X')
 
 # Prepare color
 colors_border=colormap(colormap=colormaps$viridis, nshades=6, alpha=1)

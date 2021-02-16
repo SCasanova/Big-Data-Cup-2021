@@ -1,5 +1,5 @@
 pros_shots_preds <- pros_shots_nodif %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp) %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, wp_prosp) %>% 
   as.matrix()
 
 shot_preds <- pros_shots_nodif
@@ -22,8 +22,9 @@ cg_score <- shot_preds %>% mutate(points = ifelse(Goal_bin == 1, 1000, xG_prosp*
   summarise(chance_goal_score = sum(points),
             goals = sum(Goal_bin),
             shots = n(),
-            avg_cg_score = chance_goal_score/shots) %>% 
-  filter(shots >= 40) %>% 
+            avg_cg_score = chance_goal_score/shots,
+            team = last(Team)) %>% 
+  filter(shots >= 10) %>% 
   arrange(desc(avg_cg_score))
   
 c_score <- shot_preds %>% mutate(points = xG_prosp*1000) %>% 
@@ -32,17 +33,17 @@ c_score <- shot_preds %>% mutate(points = xG_prosp*1000) %>%
             goals = sum(Goal_bin),
             shots = n(),
             avg_c_score = chance_score/shots) %>% 
-  filter(shots >= 40) %>% 
+  filter(shots >= 10) %>% 
   arrange(desc(avg_c_score)) %>% 
   select(-goals, -shots)
 
 total_xg <- shot_preds %>% 
+  mutate(goals_oX = Goal_bin-xG_prosp) %>% 
   group_by(Player) %>% 
-  summarise(xg = sum(xG_prosp),
-            goals = sum(Goal_bin),
+  summarise(goals = sum(Goal_bin),
             shots = n(),
-            goals_oX = goals-xg) %>% 
-  filter(shots >= 40) %>% 
+            goals_oX = mean(goals_oX)) %>% 
+  filter(shots >= 10) %>% 
   arrange(desc(goals_oX)) %>% 
   select(-shots)
 
@@ -64,5 +65,61 @@ cpoe <- cp_prosp %>%
             avg_pass_prob = mean(cp),
             cpoe = mean(cpoe),
             passes = n()) %>% 
-  filter(passes >= 125) %>% 
+  filter(passes >= 40) %>% 
   arrange(desc(cpoe))
+
+c_plus_cg <- left_join(cg_score, c_score, by = c('Player'))
+scores_plus_xga <- merge(cpoe, c_plus_cg, by = c('Player'))
+scores_plus_def <- merge(scores_plus_xga, taken_goals_score, by = c('Player'))
+scores_plus_def <- merge(scores_plus_def, total_xg, by = c('Player'))
+
+
+write.csv(scores_plus_def, 'pospect_metrics.csv')
+
+index_prosp <- scores_plus_def %>% 
+  select(Player, avg_c_score, avg_cg_score, avg_pass_prob, cpoe, avg_prob_taken, goals_oX, takeaways, shots, passes, team) %>% 
+  mutate(actions = takeaways+passes+shots,
+         c_stan = stan(avg_c_score), 
+         cg_stan = stan(avg_cg_score),
+         pass_prob_stan = stan(avg_pass_prob),
+         cpoe_stan = stan(cpoe),
+         taken_stan = stan(avg_prob_taken),
+         goals_ox_stan = stan(goals_oX)) %>% 
+  filter(actions >= 300 & team == 'Erie Otters') %>% 
+  mutate(grade = (c_stan+cg_stan+goals_ox_stan)*0.4+(pass_prob_stan+cpoe_stan)*0.4+(taken_stan)*0.2) %>% 
+  arrange(desc(grade))
+
+
+index_grade <- ggplot(index_prosp, aes(grade, reorder(Player, grade)))+
+  geom_point(size = index_prosp$actions/500)+
+  geom_point(aes(x = c_stan ), shape = 15,color = 'red', alpha = 0.4, size = 2)+
+  geom_point(aes(x = cg_stan), shape = 16,color = 'blue', alpha = 0.4, size = 2)+
+  geom_point(aes(x = pass_prob_stan), shape = 17,color = 'green', alpha = 0.4, size = 2)+
+  geom_point(aes(x = cpoe_stan), shape = 3,color = 'navy', alpha = 0.4, size = 2)+
+  geom_point(aes(x = taken_stan), shape = 18,color = 'grey', alpha = 0.4, size = 2)+
+  geom_point(aes(x = goals_ox_stan), shape = 19,color = 'firebrick', alpha = 0.4, size = 2)+
+  labs(title = 'Prospct Grade Based on Metric index',
+       subtitle = 'Minimum 300 actions (passes, shots, takeaways)',
+       caption = 'Metrics used: C Score + CG Score+ Goals over expected 40% \n
+       Avg Pass Prob + CPOE 40% \n
+       Taken Goals 20%',
+       y = 'Player',
+       x = 'Grade Index')+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(size = 14, hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(size = 9, hjust = 0.5)
+  )+
+  scale_x_continuous(breaks = c(0))
+ggsave('Grades.png', index_grade, width = 8, height = 8, dpi = 540)
+
+
+
+
+
+
+
+
+
+
+

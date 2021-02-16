@@ -1,14 +1,14 @@
 library(latticeExtra)
 
-glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+skater_diff+Traffic_bin+wp_prosp, family = binomial(link='logit'), data = train_shots_p)
+glm_goal <- glm(Goal_bin~dist_stan+ angle_stan+One_timer_bin+Traffic_bin+wp_prosp, family = binomial(link='logit'), data = train_shots_p)
 summary(glm_goal)
 
 prosp_tr <- train_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, wp_prosp)  %>% 
   as.matrix()
 
 prosp_ts <- test_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, wp_prosp)  %>% 
   as.matrix()
 
 labels_prosp <- train_shots_p$Goal_bin
@@ -23,11 +23,11 @@ params_prosp <- list(booster = "gbtree",
                eval_metric = c('logloss'),
                eta=0.01, 
                gamma=0, 
-               min_child_weight=6.89, 
-               max_depth = 20,
-               subsample=0.654, 
-               colsample_bytree=0.67,
-               mean_score = mean(train_shots$Goal_bin))
+               min_child_weight=1.51, 
+               max_depth = 27,
+               subsample=0.688, 
+               colsample_bytree=0.46,
+               base_score =mean(train_shots_p$Goal_bin))
 
 set.seed(33)
 xgbcv_prosp <- xgboost::xgb.cv( params = params_prosp, 
@@ -43,7 +43,7 @@ xgbcv_prosp <- xgboost::xgb.cv( params = params_prosp,
 set.seed(33)
 xG_model_prosp <- xgboost::xgb.train(params = params_prosp, 
                                data = prosptrain, 
-                               nrounds = 685, 
+                               nrounds = 526, 
                                watchlist = list(val=prosptest,train=prosptrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
@@ -56,11 +56,11 @@ xgboost::xgb.plot.importance(impor_prosp)
 #MLR learner
 
 lrn_tr_prosp <- train_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp, Goal_bin)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, wp_prosp, Goal_bin)  %>% 
   data.frame()
     
 lrn_ts_prosp <- test_shots_p %>% 
-  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, skater_diff, wp_prosp, Goal_bin)  %>% 
+  select(dist_stan, angle_stan, One_timer_bin, Traffic_bin, wp_prosp, Goal_bin)  %>% 
   data.frame()
 
 lrn_tr_prosp$Goal_bin <- as.factor(lrn_tr_prosp$Goal_bin)
@@ -73,8 +73,8 @@ testtask_prosp <- createDummyFeatures (obj = testtask_prosp)
 
 
 lrn_prosp <- makeLearner("classif.xgboost",predict.type = "response")
-lrn_prosp$par.vals <- list( objective="binary:logistic", eval_metric="logloss", nrounds=600, eta=0.01, base_score =mean(train_shots$Goal_bin), booster = 'gbtree')
-params_lrn_prosp <- makeParamSet(makeIntegerParam("max_depth",lower = 3L,upper = 20L), 
+lrn_prosp$par.vals <- list( objective="binary:logistic", eval_metric="logloss", nrounds=800, eta=0.01,base_score =mean(train_shots_p$Goal_bin), booster = 'gbtree')
+params_lrn_prosp <- makeParamSet(makeIntegerParam("max_depth",lower = 3L,upper = 30L), 
                         makeIntegerParam("gamma",lower = 0L,upper = 6L), 
                         makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
                         makeNumericParam("subsample",lower = 0.4,upper = 1), 
@@ -137,9 +137,9 @@ map_prosp <- ggplot(preds_prosp, aes(X.Coordinate, Y.Coordinate, fill= xG_prosp)
 
 
 ggplot(prob_prosp, aes(X.Coordinate, Y.Coordinate))+
-  geom_point(aes(color = value*100), size = 10, alpha = 0.3)+
+  geom_point(aes(color = value*100), size = 5, alpha = 0.5)+
   theme_minimal()+
-  scale_color_viridis(option = "B")
+  scale_color_viridis(option = "A")
 
 
 map_even_dif_prosp <- ggplot(preds_prosp[skater_dif == 0], aes(X.Coordinate, Y.Coordinate, fill= xG_prosp)) + 

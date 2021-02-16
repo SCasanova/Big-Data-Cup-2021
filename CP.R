@@ -22,10 +22,10 @@ params_pass <- list(booster = "gbtree",
                eval_metric = c('logloss'),
                eta=0.01, 
                gamma=6, 
-               min_child_weight=9.09, 
-               max_depth = 17,
-               subsample=0.401, 
-               colsample_bytree=0.785,
+               min_child_weight=1.08, 
+               max_depth = 13,
+               subsample=0.543, 
+               colsample_bytree=0.668,
                mean_score = mean(train_pass$Success))
 
 set.seed(33)
@@ -42,14 +42,14 @@ xgbcv_pass <- xgboost::xgb.cv( params = params_pass,
 set.seed(33)
 cp_model <- xgboost::xgb.train(params = params_pass, 
                                data = passtrain, 
-                               nrounds = 896, 
+                               nrounds = 739, 
                                watchlist = list(val=passtest,train=passtrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
                                maximize = F)
 
 par(mfrow=c(1,1))
-impor_pass <- xgboost::xgb.importance(colnames(passtrain), model = CP_model)
+impor_pass <- xgboost::xgb.importance(colnames(passtrain), model = cp_model)
 xgboost::xgb.plot.importance(impor_pass)
 
 #MLR learner
@@ -72,7 +72,10 @@ testtask_prosp <- createDummyFeatures (obj = testtask_pass)
 
 
 lrn_pass <- makeLearner("classif.xgboost",predict.type = "response")
-lrn_pass$par.vals <- list( objective="binary:logistic", eval_metric="logloss", nrounds=600, eta=0.01, base_score =mean(train_pass$Success), booster = 'gbtree')
+lrn_pass$par.vals <- list( objective="binary:logistic", eval_metric="logloss", 
+                           nrounds=600, 
+                           eta=0.01, base_score =mean(train_pass$Success), 
+                           booster = 'gbtree')
 params_lrn_pass <- makeParamSet(makeIntegerParam("max_depth",lower = 3L,upper = 20L), 
                         makeIntegerParam("gamma",lower = 0L,upper = 6L), 
                         makeNumericParam("min_child_weight",lower = 1L,upper = 10L), 
@@ -100,7 +103,7 @@ lrn_tune <- setHyperPars(lrn,par.vals = mytune$x)
 
 #predict model and vis
 
-CP <- predict(CP_model, passtest)
+CP <- predict(cp_model, passtest)
 
 cp_prosp <- cbind(test_pass, CP)
 

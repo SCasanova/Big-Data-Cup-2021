@@ -185,7 +185,10 @@ traintask_wp <- createDummyFeatures (obj = traintask_wp)
 testtask_wp <- createDummyFeatures (obj = testtask_wp)
 
 lrn <- makeLearner("classif.xgboost",predict.type = "response")
-lrn$par.vals <- list( objective="multi:softprob", eval_metric="mlogloss", nrounds=100L, eta=0.025)
+lrn$par.vals <- list( objective="multi:softprob", eval_metric="mlogloss", 
+                      nrounds=100L, 
+                      eta=0.025,
+                      num_class = 2)
 
 params_lrn <- makeParamSet( makeDiscreteParam("booster",values = c("gbtree")), 
                         makeIntegerParam("max_depth",lower = 3L,upper = 20L), 

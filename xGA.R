@@ -1,18 +1,6 @@
 passes <- prospects %>% 
   filter((Event == 'Play' | Event == 'Incomplete Play') )
 
-passes[, Success := ifelse(Event == 'Play', 1, 0)]
-passes[, pass_dist := sqrt((X.Coordinate-X.Coordinate.2)^2+(Y.Coordinate-Y.Coordinate.2)^2)]
-passes[, pass_dist_stan := stan(pass_dist)]
-passes[, posteam_skaters := ifelse(Team == Home.Team, Home.Team.Skaters, Away.Team.Skaters)]
-passes[, defteam_skaters := ifelse(Team == Home.Team, Away.Team.Skaters, Home.Team.Skaters)]
-passes[, skater_dif := posteam_skaters-defteam_skaters]
-
-set.seed(2021)
-train_rows_pass <- createDataPartition(passes$Success, p = 0.8, list = F)
-train_pass <- passes[train_rows_pass]
-test_pass <- passes[-train_rows_pass]
-
 
 passes[, One_timer_bin := 0]
 passes[, Traffic_bin := ifelse(X.Coordinate >= 170, 0, 1)]

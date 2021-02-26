@@ -18,9 +18,9 @@ scores_plus_def <- within(scores_plus_def, pct_goX <- perc.rank(goals_oX))
 
 
 
-test_prof <- scores_plus_def %>% arrange(desc(pct_cpoe)) %>%   head(6)
+test_prof <- scores_plus_def %>% arrange(desc(pct_goX)) %>%   head(6)
 mytitle <- test_prof$Player
-test_prof <- test_prof %>% select(pct_cg, pct_c, pct_cpoe, pct_take_def,pct_goX)
+test_prof <- test_prof %>% dplyr::select(pct_cg, pct_c, pct_cpoe, pct_take_def,pct_goX)
 #test_prof <- test_prof %>% select(avg_cg_score, avg_c_score, cpoe, taken_goals, xg,goals_oX)
 
 

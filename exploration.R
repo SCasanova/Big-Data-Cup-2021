@@ -15,6 +15,8 @@ womens <- data.table(read.csv('https://raw.githubusercontent.com/bigdatacup/Big-
 #Prospect file is not up to date. URL is latest
 prospects <- data.table(read.csv('https://raw.githubusercontent.com/bigdatacup/Big-Data-Cup-2021/main/hackathon_scouting.csv'))
 
+
+
 goals <- womens[Event == 'Goal']
 shots <- womens[Event == 'Shot']
 
@@ -50,18 +52,93 @@ ggplot(passes, aes(direct, int_pass_dist)) +
   theme_minimal()
 
 
-womens_mat <- womens %>% 
+womens[, posteam_skaters := ifelse(Team == Home.Team, Home.Team.Skaters, Away.Team.Skaters)]
+womens[, defteam_skaters := ifelse(Team == Home.Team, Away.Team.Skaters, Home.Team.Skaters)]
+womens[, skater_diff := posteam_skaters-defteam_skaters]
+womens[, posteam_score := ifelse(Team == Home.Team, Home.Team.Goals, Away.Team.Goals)]
+womens[, defteam_score := ifelse(Team == Home.Team, Away.Team.Goals, Home.Team.Goals)]
+womens[, score_diff := posteam_score-defteam_score]
+
+womens$Clock <- sapply(strsplit(womens$Clock,":"),
+       function(x) {
+         x <- as.numeric(x)
+         x[1]+x[2]/60
+       }
+)
+womens <- womens %>%
+  filter(Period < 4) %>%
+  mutate(total_time_left = case_when(
+    Period == 1 ~ Clock + 40,
+    Period == 2 ~ Clock + 20,
+    Period == 3 ~ Clock))
+
+
+womens_wp_mat <- womens %>% 
   select(Period, Clock, score_diff,skater_diff, total_time_left)  %>% 
   as.matrix()
 
-wp_all <- predict(wp_model, womens_mat)
-womens <- cbind(womens, wp_all)
+wp <- predict(wp_model, womens_wp_mat)
+womens <- cbind(womens, wp)
 
 goals_wp <- womens %>% 
-  mutate(goal = ifelse(Event == 'Goal', 1, 0)) %>% 
-  group_by(wp_all) %>% 
+  mutate(goal = ifelse(Event == 'Goal', 1, 0),
+         wp = round(wp,2)) %>% 
+  group_by(wp) %>% 
   summarise(goals = sum(goal))
 
-ggplot(goals_wp, aes(wp_all, goals))+
+ggplot(goals_wp, aes(wp, goals))+
+  geom_point(aes(alpha = 0.3, size = goals, color = wp))+
   geom_smooth(se = F) +
-  theme_minimal()
+  theme_minimal()+
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+
+
+
+prospects[, posteam_skaters := ifelse(Team == Home.Team, Home.Team.Skaters, Away.Team.Skaters)]
+prospects[, defteam_skaters := ifelse(Team == Home.Team, Away.Team.Skaters, Home.Team.Skaters)]
+prospects[, skater_diff := posteam_skaters-defteam_skaters]
+prospects[, posteam_score := ifelse(Team == Home.Team, Home.Team.Goals, Away.Team.Goals)]
+prospects[, defteam_score := ifelse(Team == Home.Team, Away.Team.Goals, Home.Team.Goals)]
+prospects[, score_diff := posteam_score-defteam_score]
+
+prospects$Clock <- sapply(strsplit(prospects$Clock,":"),
+       function(x) {
+         x <- as.numeric(x)
+         x[1]+x[2]/60
+       }
+)
+prospects <- prospects %>%
+  filter(Period < 4) %>%
+  mutate(total_time_left = case_when(
+    Period == 1 ~ Clock + 40,
+    Period == 2 ~ Clock + 20,
+    Period == 3 ~ Clock))
+
+
+prospects_wp_mat <- prospects %>% 
+  select(Period, Clock, score_diff,skater_diff, total_time_left)  %>% 
+  as.matrix()
+
+wp <- predict(scouting_wp, prospects_wp_mat)
+prospects <- cbind(prospects, wp)
+
+goals_wp_p <- prospects %>% 
+  mutate(goal = ifelse(Event == 'Goal', 1, 0),
+         wp = round(wp,3)) %>% 
+  group_by(wp) %>% 
+  summarise(goals = sum(goal))
+
+ggplot(goals_wp_p, aes(wp, goals))+
+  geom_point(aes(alpha = 0.3, size = goals, color = wp))+
+  geom_smooth(se = F) +
+  theme_minimal()+
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+
+
+
+ben_viz <- prospects %>% 
+  filter(Event == 'Goal') %>% 
+  select(game_num, Period, Event, wp)
+
+
+

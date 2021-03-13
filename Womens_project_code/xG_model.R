@@ -216,6 +216,8 @@ preds$Goal_fac <- as.factor(preds$Goal)
 preds$dumb <- mean(preds$Goal)
 
 AUC(preds$xG, preds$Goal_fac)
+confusionMatrix(preds$pred_G, preds$Goal_fac)
+
 
 
 

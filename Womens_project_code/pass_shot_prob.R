@@ -38,7 +38,7 @@ aactions[, angle2 := mapply(shot_angle_ohl,X.Coordinate.2,Y.Coordinate.2)]
 aactions[, dist_stan2 := stan(dist2)]
 aactions[, angle_stan2 := stan(angle2)]
 
-iactions <- olympic[Event == 'Goal' | Event == 'Shot']
+iactions <- olympic[Event == 'Goal' | Event == 'Shot' | Event == 'Play' | Event == 'Incomplete Play']
 iactions[, posteam_skaters := ifelse(Team == Home.Team, Home.Team.Skaters, Away.Team.Skaters)]
 iactions[, defteam_skaters := ifelse(Team == Home.Team, Away.Team.Skaters, Home.Team.Skaters)]
 iactions[, skater_diff := posteam_skaters-defteam_skaters]
@@ -199,11 +199,11 @@ params_rw<- list(booster = "gbtree",
                objective = "binary:logistic", 
                eval_metric = c('auc'),
                eta=0.01, 
-               gamma=5, 
-               min_child_weight=3.9, 
-               max_depth = 16,
-               subsample=0.944, 
-               colsample_bytree=0.833,
+               gamma=6, 
+               min_child_weight=3.71, 
+               max_depth = 5,
+               subsample=0.625, 
+               colsample_bytree=0.832,
                base_score =mean(train_waction$pass))
 
 set.seed(33)
@@ -220,7 +220,7 @@ xgbcv_rw<- xgboost::xgb.cv( params = params_rw,
 set.seed(33)
 rw_model <- xgboost::xgb.train(params = params_rw, 
                                data = rwtrain, 
-                               nrounds = 340, 
+                               nrounds = 600, 
                                watchlist = list(val=rwtest,train=rwtrain), 
                                print_every_n = 20, 
                                early_stop_round = 10, 
@@ -272,17 +272,32 @@ cp_pred_mat <- all_actions %>%
 cp <- predict(wcp_model, cp_pred_mat)
 all_actions <- cbind(all_actions, cp)
 
-all_actions %>% 
-  mutate(round_xg = round(xg,3)) %>% 
+xg_vs_goals <- all_actions %>% 
+  mutate(round_xg = round(xg,2)) %>% 
   group_by(round_xg) %>% 
-  summarise(mean(Goal),
-            n()) %>% 
-  View()
+  summarise(avg_goal= mean(Goal),
+            n())
+
+
+
+xg_value <- ggplot(xg_vs_goals, aes(round_xg, avg_goal))+
+  geom_point(color = 'black')+
+  theme_minimal()+
+  geom_smooth(method = 'loess')+
+  labs(x = 'Expected Goals',
+       y = 'Average Goals Scored',
+       title = 'Average Goals Scored by xG Value',
+       subtitle = 'Values rounded to 2 decimal values')+
+  theme(
+    plot.title = element_text(size = 14, hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(size = 9, hjust = 0.5)
+  )
+ggsave('xg_value.png', xg_value,device = 'png', dpi = 460,)
 
 
 action_grade <- all_actions %>% 
   filter(Event == 'Play' | Event == 'Incomplete Play') %>% 
-  dplyr::select(Player, Team, Event, X.Coordinate, Y.Coordinate,xg,pass_prob,cp,
+  dplyr::select(game_date, Home.Team, Away.Team, Player, Team, Event, Period, Clock, X.Coordinate, Y.Coordinate,xg,pass_prob,cp,
                    Player.2, X.Coordinate.2, Y.Coordinate.2, xg2) %>% 
   mutate(expected_action = ifelse(pass_prob >= 0.5, 'Pass', 'Shot'),
          actual_action = ifelse(Event == 'Shot' | Event == 'Goal', 'Shot', 'Pass'),
@@ -290,7 +305,8 @@ action_grade <- all_actions %>%
          pass_risk = xg-(cp*xg2),
          pass_reward = xg2-xg,
          xga = ifelse(Event == 'Play', xg2-xg, -xg),
-         suggested_action = ifelse(((pass_reward <0 & xg >= 0.05) | pass_risk >0.07) & xg > 0.077, 'Shot', 'Pass'))
+         suggested_action = ifelse((((pass_reward <0) | pass_risk >0.08) & xg > 0.077) | xg > 0.12, 'Shot', 'Pass'))
+
 
 
 
@@ -308,23 +324,32 @@ action_grade %>%
          `xG after Pass` = xg2)
 
 options(scipen = 9999)
-action_grade %>% 
+
+correctness <- action_grade %>% 
   group_by(Player) %>% 
   summarise(correct_decs = sum(ifelse(suggested_action == actual_action, 1, 0)),
             expected_decs = sum(ifelse(expected_action == actual_action, 1, 0)),
             plays = n(),
             correct_rate = correct_decs/plays,
-            expected_rate = expected_decs/plays) %>% 
+            expected_rate = expected_decs/plays,
+            avg_xga = mean(xga)) %>% 
   filter(plays >= 100) %>% 
   arrange(desc(correct_rate))
 
+
+cor(correctness$avg_xga, correctness$correct_rate)
+
+ggplot(correctness, aes(avg_xga, correct_rate))+
+  geom_point(color = 'black')+
+  theme_minimal()+
+  geom_smooth(se =F, method = 'lm')
 
 jet.colors <- colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
 
 options(scipen = 9999)
 
 expected_shot <- all_actions %>% 
-  filter(pass_prob <= 0.5)
+  filter(pass_prob < 0.5)
 
 
 xmap <- ggplot(expected_shot, aes(X.Coordinate, Y.Coordinate)) + 
@@ -336,7 +361,7 @@ xmap <- ggplot(expected_shot, aes(X.Coordinate, Y.Coordinate)) +
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")+
   xlim(100,200)+
   ylim(0,85)
-ggsave("xheatmap.png", xmap, device = 'png', dpi = 540)
+ggsave("xheatmap.png", xmap, device = 'png', dpi = 540, bg = 'transparent')
 
 shot <- all_actions %>% 
   filter(Event == 'Shot' | Event == 'Goal')
@@ -350,7 +375,7 @@ ac_map <- ggplot(shot, aes(X.Coordinate, Y.Coordinate)) +
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")+
   xlim(100,200)+
   ylim(0,85)
-ggsave("acheatmap.png", ac_map, device = 'png', dpi = 540)
+ggsave("acheatmap.png", ac_map, device = 'png', dpi = 540, bg = 'transparent')
 
 suggested_shot <- action_grade %>% 
   filter(suggested_action == 'Shot')
@@ -363,6 +388,10 @@ sug_map <- ggplot(suggested_shot, aes(X.Coordinate, Y.Coordinate)) +
   labs(x = NULL, y = NULL)+
   coord_fixed(ratio = 1, xlim = NULL, ylim = NULL, expand = TRUE, clip = "on")+
   xlim(100,200)+
-  ylim(0,85)
-ggsave("sugheatmap.png", sug_map, device = 'png', dpi = 540)
+  ylim(0,85)+
+  labs(title = 'Beta = 0.8')+
+  theme(
+    plot.title = element_text(size = 30, hjust = 0.5, face = "bold")
+  )
+ggsave("sugheatmap_8.png", sug_map, device = 'png', dpi = 540, bg = 'transparent')
 

@@ -395,3 +395,14 @@ sug_map <- ggplot(suggested_shot, aes(X.Coordinate, Y.Coordinate)) +
   )
 ggsave("sugheatmap_8.png", sug_map, device = 'png', dpi = 540, bg = 'transparent')
 
+plot_gg(sug_map, width = 5, height = 5, multicore = TRUE, scale = 250,
+        zoom = 0.7, theta = 10, phi = 30, windowsize = c(800, 800))
+Sys.sleep(0.2)
+render_snapshot(clear = TRUE)
+
+plot_gg(sug_map, width = 5, height = 4, scale = 300, multicore = TRUE, windowsize = c(1200, 960),
+        fov = 70, zoom = 0.4, theta = 330, phi = 40)
+Sys.sleep(0.2)
+render_depth(focus = 0.85, focallength = 200,clear=TRUE)%>% 
+  ggsave('dof.png', device = 'png', dpi = 480)
+
